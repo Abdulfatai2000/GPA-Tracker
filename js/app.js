@@ -16,6 +16,7 @@ import { renderCourseForm } from "./components/courseForm.js";
 import { renderCourseList } from "./components/courseList.js";
 import { renderGPAResult } from "./components/gpaResult.js";
 import { renderHeader } from "./components/header.js";
+import { renderFooter } from "./components/footer.js";
 import { showToast } from "./components/toast.js";
 import { showConfirm } from "./components/confirm.js";
 import { renderSettings } from "./components/settings.js";
@@ -28,6 +29,7 @@ const App = {
     semesters: [],
     activeSemesterId: null,
     theme: getPreferredTheme(),
+    showLanding: true,
   },
 
   init() {
@@ -52,6 +54,8 @@ const App = {
     const raw = loadAppState();
     this.state.settings = raw.settings || { defaultScaleKey: '5.0' };
     this.state.activeSemesterId = activeSemesterId || (this.state.semesters.length > 0 ? this.state.semesters[0].id : null);
+    // Show landing when there is no saved academic data yet.
+    this.state.showLanding = (this.state.semesters.length === 0);
   },
 
   persist() {
@@ -236,6 +240,15 @@ const App = {
     const main = document.createElement("main");
     main.className = "app-main";
 
+    // If we should show the landing page (first-time experience), render it above the main area
+    if (this.state.showLanding && this.state.semesters.length === 0) {
+      app.appendChild(this.renderLanding());
+      // still render main (create form) underneath so CTA focuses it, but keep it concise
+      app.appendChild(main);
+      app.appendChild(renderFooter());
+      return;
+    }
+
     // Page intro
     const intro = document.createElement("section");
     intro.className = "card intro";
@@ -346,6 +359,76 @@ const App = {
     }
 
     app.appendChild(main);
+    // Render footer consistently
+    app.appendChild(renderFooter());
+  },
+
+  renderLanding() {
+    const wrap = document.createElement('section');
+    wrap.className = 'landing-page';
+    wrap.id = 'landing';
+    wrap.innerHTML = `
+      <div class="landing-hero card">
+        <div class="hero-content">
+          <h1>Track your GPA with clarity and confidence</h1>
+          <p class="muted">GPA Tracker helps students plan semesters, add courses, and calculate semester and cumulative GPAs with clarity. Lightweight, private, and easy to use.</p>
+          <div class="hero-ctas">
+            <button class="btn btn-primary" id="cta-start">Get Started</button>
+            <a href="#features" class="btn btn-secondary">See features</a>
+          </div>
+        </div>
+        <div class="hero-preview">
+          <!-- simple SVG preview to hint analytics -->
+          <svg class="preview-svg" viewBox="0 0 400 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Analytics preview">
+            <rect width="100%" height="100%" rx="10" fill="var(--surface-alt)"/>
+            <g transform="translate(24,24)">
+              <polyline points="0,140 40,110 80,120 120,70 160,90 200,60" fill="none" stroke="var(--primary)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+              <g fill="var(--muted)">
+                <circle cx="40" cy="110" r="4"/>
+                <circle cx="120" cy="70" r="4"/>
+                <circle cx="200" cy="60" r="4"/>
+              </g>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <div class="landing-features card" id="features">
+        <h2>Key features</h2>
+        <div class="features-grid">
+          <div class="feature"><strong>Fast entry</strong><div class="muted">Add semesters and courses quickly.</div></div>
+          <div class="feature"><strong>Accurate GPA math</strong><div class="muted">Weighted GPA and CGPA calculations using common grading scales.</div></div>
+          <div class="feature"><strong>Privacy-first</strong><div class="muted">Everything stores locally in your browser; no accounts required.</div></div>
+          <div class="feature"><strong>Analytics preview</strong><div class="muted">Visualize GPA trends and grade distribution.</div></div>
+        </div>
+      </div>
+
+      <div class="landing-how card" id="how">
+        <h2>How it works</h2>
+        <ol>
+          <li>Create a semester and select a grading scale.</li>
+          <li>Add your courses with credit units and received grades.</li>
+          <li>See instant semester GPA and cumulative CGPA with analytics.</li>
+        </ol>
+      </div>
+    `;
+
+    // CTA wiring
+    setTimeout(() => {
+      const cta = wrap.querySelector('#cta-start');
+      if (cta) cta.addEventListener('click', () => {
+        // hide landing and show create-semester form
+        this.state.showLanding = false;
+        this.render();
+        // focus the create form's first input after render
+        setTimeout(() => {
+          const el = document.querySelector('.semester-form #semester-name');
+          if (el) el.focus();
+        }, 60);
+      });
+    }, 0);
+
+    return wrap;
   },
 
   renderActiveBanner(semester) {
