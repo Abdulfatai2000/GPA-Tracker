@@ -7,7 +7,7 @@
  * Emits no events directly; the parent wires the toggle button.
  */
 
-export function renderHeader(theme, onToggleTheme) {
+export function renderHeader(theme, onToggleTheme, onOpenSettings) {
   const header = document.createElement("header");
   header.className = "app-header";
 
@@ -29,6 +29,13 @@ export function renderHeader(theme, onToggleTheme) {
 
   const controls = document.createElement('div');
   controls.className = 'controls';
+  const settingsBtn = document.createElement('button');
+  settingsBtn.type = 'button';
+  settingsBtn.className = 'btn btn-ghost';
+  settingsBtn.setAttribute('aria-label', 'Open settings');
+  settingsBtn.textContent = 'Settings';
+  settingsBtn.addEventListener('click', () => onOpenSettings && onOpenSettings());
+  controls.appendChild(settingsBtn);
   controls.appendChild(toggle);
 
   header.appendChild(brand);

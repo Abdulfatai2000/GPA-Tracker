@@ -16,6 +16,9 @@ import { renderCourseForm } from "./components/courseForm.js";
 import { renderCourseList } from "./components/courseList.js";
 import { renderGPAResult } from "./components/gpaResult.js";
 import { renderHeader } from "./components/header.js";
+import { showToast } from "./components/toast.js";
+import { showConfirm } from "./components/confirm.js";
+import { renderSettings } from "./components/settings.js";
 import { renderCourseSection } from "./components/courseSection.js";
 import { applyTheme, getPreferredTheme, toggleTheme } from "./utils/theme.js";
 
@@ -44,11 +47,14 @@ const App = {
       scaleKey: s.scaleKey || "5.0",
       courses: Array.isArray(s.courses) ? s.courses : [],
     })) : [];
+    // load settings if present
+    const raw = loadAppState();
+    this.state.settings = raw.settings || { defaultScaleKey: '5.0' };
     this.state.activeSemesterId = activeSemesterId || (this.state.semesters.length > 0 ? this.state.semesters[0].id : null);
   },
 
   persist() {
-    saveAppState({ semesters: this.state.semesters, activeSemesterId: this.state.activeSemesterId });
+    saveAppState({ semesters: this.state.semesters, activeSemesterId: this.state.activeSemesterId, settings: this.state.settings });
   },
 
   getActiveSemester() {
@@ -76,7 +82,10 @@ const App = {
   handleSelectSemester(id) {
     if (!id) return;
     const found = this.state.semesters.find((s) => s.id === id);
-    if (!found) return alert('Selected semester not found.');
+    if (!found) {
+      showToast('Selected semester not found.', 'error');
+      return;
+    }
     this.state.activeSemesterId = id;
     this.persist();
     this.render();
@@ -92,24 +101,26 @@ const App = {
     sem.name = String(name).trim() || sem.name;
     sem.session = String(session).trim() || sem.session;
     this.persist();
+    showToast('Semester renamed', 'success');
     this.render();
   },
 
-  handleDeleteSemester(id) {
+  async handleDeleteSemester(id) {
     const idx = this.state.semesters.findIndex((s) => s.id === id);
     if (idx === -1) return;
     const sem = this.state.semesters[idx];
-    if ((sem.courses || []).length > 0) {
-      if (!confirm(`Delete semester "${sem.name}" and its ${sem.courses.length} courses? This cannot be undone.`)) return;
-    } else {
-      if (!confirm(`Delete semester "${sem.name}"?`)) return;
-    }
+    const msg = (sem.courses || []).length > 0
+      ? `Delete semester "${sem.name}" and its ${sem.courses.length} courses? This cannot be undone.`
+      : `Delete semester "${sem.name}"?`;
+    const ok = await showConfirm(msg);
+    if (!ok) return;
     this.state.semesters.splice(idx, 1);
     // Choose a sensible active semester.
     if (this.state.activeSemesterId === id) {
       this.state.activeSemesterId = this.state.semesters.length > 0 ? this.state.semesters[0].id : null;
     }
     this.persist();
+    showToast('Semester deleted', 'success');
     this.render();
   },
 
@@ -122,7 +133,7 @@ const App = {
     // Validate course against scale.
     const { valid, errors } = validateCourse(course, scale);
     if (!valid) {
-      alert(errors.join("\n"));
+      showToast(errors.join('\n'), 'error');
       return;
     }
 
@@ -156,7 +167,7 @@ const App = {
     const scale = getGradingScale(semester.scaleKey);
     const { valid, errors } = validateCourse(updated, scale);
     if (!valid) {
-      alert(errors.join("\n"));
+      showToast(errors.join('\n'), 'error');
       return;
     }
 
@@ -165,12 +176,14 @@ const App = {
     this.render();
   },
 
-  handleDeleteCourse(index) {
+  async handleDeleteCourse(index) {
     const semester = this.getActiveSemester();
     if (!semester || !semester.courses[index]) return;
-    if (!confirm("Delete this course?")) return;
+    const ok = await showConfirm('Delete this course?');
+    if (!ok) return;
     semester.courses.splice(index, 1);
     this.persist();
+    showToast('Course deleted', 'success');
     this.render();
   },
 
@@ -189,7 +202,35 @@ const App = {
     const app = document.getElementById("app");
     app.innerHTML = "";
     // Render header component (keeps branding + theme toggle consistent)
-    app.appendChild(renderHeader(this.state.theme, () => this.toggleTheme()));
+    app.appendChild(renderHeader(this.state.theme, () => this.toggleTheme(), () => {
+      // Open settings modal
+      const overlay = renderSettings({ currentTheme: this.state.theme, defaultScaleKey: this.state.settings?.defaultScaleKey || '5.0' }, {
+        onClose: () => {},
+        onSave: ({ theme, defaultScaleKey }) => {
+          // Apply theme choice (system means use preferred)
+          const newTheme = theme === 'system' ? getPreferredTheme() : theme;
+          this.state.theme = newTheme;
+          applyTheme(this.state.theme);
+          this.state.settings = this.state.settings || {};
+          this.state.settings.defaultScaleKey = defaultScaleKey;
+          this.persist();
+          showToast('Settings saved', 'success');
+          this.render();
+        },
+        onClear: async () => {
+          const ok = await showConfirm('This will permanently delete all academic data (semesters and courses). Your theme preference will be kept. Continue?');
+          if (!ok) return;
+          // Clear semesters but keep settings and theme
+          this.state.semesters = [];
+          this.state.activeSemesterId = null;
+          this.persist();
+          showToast('Academic data cleared', 'success');
+          overlay.remove();
+          this.render();
+        }
+      });
+      document.body.appendChild(overlay);
+    }));
 
     const main = document.createElement("main");
     main.className = "app-main";

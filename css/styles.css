@@ -92,3 +92,12 @@ th{color:var(--muted);font-weight:600;font-size:0.78rem;text-transform:uppercase
 
 /* Accessibility: visible focus for keyboard users */
 button:focus-visible, input:focus-visible, select:focus-visible { outline: none; box-shadow: 0 0 0 4px var(--primary-soft); }
+
+/* Toasts */
+#toast-container{pointer-events:none}
+#toast-container .toast{pointer-events:auto}
+
+/* Confirm & settings overlays use inline styles, add small rule tweaks */
+.confirm-dialog{padding:1rem}
+.settings-card{padding:1rem}
+

@@ -20,6 +20,7 @@ export function loadAppState() {
       return {
         semesters: Array.isArray(parsed.semesters) ? parsed.semesters : [],
         activeSemesterId: parsed.activeSemesterId || null,
+        settings: parsed.settings || {},
       };
     }
     return { semesters: [], activeSemesterId: null };
@@ -29,9 +30,13 @@ export function loadAppState() {
   }
 }
 
-export function saveAppState({ semesters, activeSemesterId }) {
+export function saveAppState({ semesters, activeSemesterId, settings } = {}) {
   try {
-    const payload = { semesters: Array.isArray(semesters) ? semesters : [], activeSemesterId: activeSemesterId || null };
+    const payload = {
+      semesters: Array.isArray(semesters) ? semesters : [],
+      activeSemesterId: activeSemesterId || null,
+      settings: settings || {},
+    };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     return true;
   } catch (error) {
