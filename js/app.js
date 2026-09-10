@@ -6,7 +6,7 @@
  */
 
 import { createSemester } from "./models/Semester.js";
-import { createCourse } from "./models/Course.js";
+import { createCourse, validateCourse } from "./models/Course.js";
 import { calculateSemesterGPA } from "./services/gpaService.js";
 import { loadSemesters, saveSemesters } from "./services/storageService.js";
 import { getGradingScale } from "./config/gradingScales.js";
@@ -60,7 +60,16 @@ const App = {
   handleAddCourse({ code, name, credits, grade }) {
     const semester = this.getActiveSemester();
     if (!semester) return;
+    const scale = getGradingScale(semester.scaleKey);
     const course = createCourse({ code, name, credits, grade });
+
+    // Validate course against scale.
+    const { valid, errors } = validateCourse(course, scale);
+    if (!valid) {
+      alert(errors.join("\n"));
+      return;
+    }
+
     semester.courses.push(course);
     this.persist();
     this.render();
@@ -80,13 +89,22 @@ const App = {
     const grade = prompt("Grade:", course.grade);
     if (grade === null) return;
 
-    semester.courses[index] = {
+    const updated = {
       ...course,
-      code: code.trim(),
-      name: name.trim(),
+      code: String(code).trim(),
+      name: String(name).trim(),
       credits: Number(creditsStr) || 0,
-      grade: grade.trim(),
+      grade: String(grade).trim(),
     };
+
+    const scale = getGradingScale(semester.scaleKey);
+    const { valid, errors } = validateCourse(updated, scale);
+    if (!valid) {
+      alert(errors.join("\n"));
+      return;
+    }
+
+    semester.courses[index] = updated;
     this.persist();
     this.render();
   },
