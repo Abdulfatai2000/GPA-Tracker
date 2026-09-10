@@ -1,7 +1,8 @@
-/* GPA Tracker styles */
+/* GPA Tracker design system */
 :root {
   --bg: #f4f6fb;
   --surface: #ffffff;
+  --surface-alt: #f8f9fc;
   --text: #1f2330;
   --muted: #6b7280;
   --border: #e5e7eb;
