@@ -21,6 +21,7 @@ import { showConfirm } from "./components/confirm.js";
 import { renderSettings } from "./components/settings.js";
 import { renderCourseSection } from "./components/courseSection.js";
 import { applyTheme, getPreferredTheme, toggleTheme } from "./utils/theme.js";
+import { renderAnalyticsPanel } from "./components/analyticsPanel.js";
 
 const App = {
   state: {
@@ -335,6 +336,9 @@ const App = {
 
       // Full GPA result card (detail)
       right.appendChild(renderGPAResult(result));
+
+      // Analytics panel
+      right.appendChild(renderAnalyticsPanel(this.state.semesters));
 
       grid.appendChild(left);
       grid.appendChild(right);
