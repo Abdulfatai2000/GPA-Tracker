@@ -15,12 +15,13 @@
 
 import { createCourse } from "./Course.js";
 
-export function createSemester({ name = "", scaleKey = "5.0", courses = [] } = {}) {
+export function createSemester({ name = "", session = "", scaleKey = "5.0", courses = [] } = {}) {
   return {
     id: generateId(),
     name: String(name).trim(),
+    session: String(session).trim(),
     scaleKey: String(scaleKey).trim() || "5.0",
-    courses: courses.map((c) => (c && typeof c === "object" ? createCourse(c) : c)),
+    courses: Array.isArray(courses) ? courses.map((c) => (c && typeof c === "object" ? createCourse(c) : c)) : [],
   };
 }
 

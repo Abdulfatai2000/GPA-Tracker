@@ -3,26 +3,39 @@
  * All data is stored locally in the browser; no backend required.
  */
 
-const STORAGE_KEY = "gpa_tracker_semesters_v1";
+const STORAGE_KEY = "gpa_tracker_state_v1";
 
-export function loadSemesters() {
+// Backwards-compatible loader: supports older storage formats (array of
+// semesters) and the new object shape { semesters, activeSemesterId }.
+export function loadAppState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw) return { semesters: [], activeSemesterId: null };
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (Array.isArray(parsed)) {
+      // Older format: raw array of semesters.
+      return { semesters: parsed, activeSemesterId: parsed.length > 0 ? parsed[0].id : null };
+    }
+    if (parsed && typeof parsed === "object") {
+      return {
+        semesters: Array.isArray(parsed.semesters) ? parsed.semesters : [],
+        activeSemesterId: parsed.activeSemesterId || null,
+      };
+    }
+    return { semesters: [], activeSemesterId: null };
   } catch (error) {
-    console.warn("Failed to load saved semesters:", error);
-    return [];
+    console.warn("Failed to load saved state:", error);
+    return { semesters: [], activeSemesterId: null };
   }
 }
 
-export function saveSemesters(semesters) {
+export function saveAppState({ semesters, activeSemesterId }) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(semesters));
+    const payload = { semesters: Array.isArray(semesters) ? semesters : [], activeSemesterId: activeSemesterId || null };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     return true;
   } catch (error) {
-    console.warn("Failed to save semesters:", error);
+    console.warn("Failed to save app state:", error);
     return false;
   }
 }

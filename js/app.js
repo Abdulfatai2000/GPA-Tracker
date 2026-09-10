@@ -7,10 +7,11 @@
 
 import { createSemester } from "./models/Semester.js";
 import { createCourse, validateCourse } from "./models/Course.js";
-import { calculateSemesterGPA } from "./services/gpaService.js";
-import { loadSemesters, saveSemesters } from "./services/storageService.js";
+import { calculateSemesterGPA, calculateCGPA } from "./services/gpaService.js";
+import { loadAppState, saveAppState } from "./services/storageService.js";
 import { getGradingScale } from "./config/gradingScales.js";
 import { renderSemesterForm } from "./components/semesterForm.js";
+import { renderSemesterList } from "./components/semesterList.js";
 import { renderCourseForm } from "./components/courseForm.js";
 import { renderCourseList } from "./components/courseList.js";
 import { renderGPAResult } from "./components/gpaResult.js";
@@ -34,13 +35,20 @@ const App = {
   // ----- Data management -----
 
   restoreData() {
-    this.state.semesters = loadSemesters();
-    this.state.activeSemesterId =
-      this.state.semesters.length > 0 ? this.state.semesters[0].id : null;
+    const { semesters, activeSemesterId } = loadAppState();
+    // Normalize older or malformed entries conservatively.
+    this.state.semesters = Array.isArray(semesters) ? semesters.map((s) => ({
+      id: s.id || null,
+      name: s.name || "",
+      session: s.session || "",
+      scaleKey: s.scaleKey || "5.0",
+      courses: Array.isArray(s.courses) ? s.courses : [],
+    })) : [];
+    this.state.activeSemesterId = activeSemesterId || (this.state.semesters.length > 0 ? this.state.semesters[0].id : null);
   },
 
   persist() {
-    saveSemesters(this.state.semesters);
+    saveAppState({ semesters: this.state.semesters, activeSemesterId: this.state.activeSemesterId });
   },
 
   getActiveSemester() {
@@ -53,6 +61,54 @@ const App = {
     const semester = createSemester({ name, scaleKey });
     this.state.semesters.unshift(semester);
     this.state.activeSemesterId = semester.id;
+    this.persist();
+    this.render();
+  },
+
+  handleCreateSemesterWithSession({ name, session, scaleKey }) {
+    const semester = createSemester({ name, session, scaleKey });
+    this.state.semesters.unshift(semester);
+    this.state.activeSemesterId = semester.id;
+    this.persist();
+    this.render();
+  },
+
+  handleSelectSemester(id) {
+    if (!id) return;
+    const found = this.state.semesters.find((s) => s.id === id);
+    if (!found) return alert('Selected semester not found.');
+    this.state.activeSemesterId = id;
+    this.persist();
+    this.render();
+  },
+
+  handleRenameSemester(id) {
+    const sem = this.state.semesters.find((s) => s.id === id);
+    if (!sem) return;
+    const name = prompt('Rename semester:', sem.name);
+    if (name === null) return;
+    const session = prompt('Academic session (e.g. 2025/2026):', sem.session || '');
+    if (session === null) return;
+    sem.name = String(name).trim() || sem.name;
+    sem.session = String(session).trim() || sem.session;
+    this.persist();
+    this.render();
+  },
+
+  handleDeleteSemester(id) {
+    const idx = this.state.semesters.findIndex((s) => s.id === id);
+    if (idx === -1) return;
+    const sem = this.state.semesters[idx];
+    if ((sem.courses || []).length > 0) {
+      if (!confirm(`Delete semester "${sem.name}" and its ${sem.courses.length} courses? This cannot be undone.`)) return;
+    } else {
+      if (!confirm(`Delete semester "${sem.name}"?`)) return;
+    }
+    this.state.semesters.splice(idx, 1);
+    // Choose a sensible active semester.
+    if (this.state.activeSemesterId === id) {
+      this.state.activeSemesterId = this.state.semesters.length > 0 ? this.state.semesters[0].id : null;
+    }
     this.persist();
     this.render();
   },
@@ -156,8 +212,8 @@ const App = {
     if (!semester) {
       const left = document.createElement("div");
       left.className = "col left";
-      left.appendChild(renderSemesterForm(({ name, scaleKey }) =>
-        this.handleCreateSemester({ name, scaleKey })
+      left.appendChild(renderSemesterForm(({ name, session, scaleKey }) =>
+        this.handleCreateSemesterWithSession({ name, session, scaleKey })
       ));
 
       const right = document.createElement("div");
@@ -173,8 +229,20 @@ const App = {
 
       const left = document.createElement("div");
       left.className = "col left";
+      // Semester list (history)
+      left.appendChild(renderSemesterList(this.state.semesters, this.state.activeSemesterId, {
+        onSelect: (id) => this.handleSelectSemester(id),
+        onEdit: (id) => this.handleRenameSemester(id),
+        onDelete: (id) => this.handleDeleteSemester(id),
+        onCreate: () => {
+          // focus create form by rendering and focusing later
+          this.state.activeSemesterId = null;
+          this.render();
+        }
+      }));
+
       // Semester form (edit / context) — prepared for later functionality
-      left.appendChild(renderSemesterForm(({ name, scaleKey }) => this.handleCreateSemester({ name, scaleKey })));
+      left.appendChild(renderSemesterForm(({ name, session, scaleKey }) => this.handleCreateSemesterWithSession({ name, session, scaleKey })));
       // Course form
       left.appendChild(renderCourseForm(semester.scaleKey, (data) => this.handleAddCourse(data)));
       // Course section (table + actions)
@@ -191,31 +259,35 @@ const App = {
 
       const right = document.createElement("div");
       right.className = "col right";
-      // GPA summary card
+      // GPA & CGPA summary card
       const result = calculateSemesterGPA(semester);
+      const overall = calculateCGPA(this.state.semesters);
       const summary = document.createElement('section');
       summary.className = 'card summary-card';
       summary.innerHTML = `
-        <h2>Summary</h2>
+        <h2>Academic Summary</h2>
         <div class="gpa-grid">
           <div class="gpa-big">
             <span class="gpa-value">${result.gpa === 0 ? '—' : result.gpa.toFixed(2)}</span>
-            <span class="gpa-label">GPA</span>
+            <span class="gpa-label">Current Semester GPA</span>
           </div>
           <div class="gpa-stats">
             <div class="stat">
-              <span class="stat-value">${result.totalCredits || 0}</span>
-              <span class="stat-label">Total Credits</span>
+              <span class="stat-value">${overall.cgpa === 0 ? '—' : overall.cgpa.toFixed(2)}</span>
+              <span class="stat-label">Overall CGPA</span>
             </div>
             <div class="stat">
-              <span class="stat-value">${result.totalQualityPoints || 0}</span>
-              <span class="stat-label">Quality Points</span>
+              <span class="stat-value">${overall.totalCredits || 0}</span>
+              <span class="stat-label">Total Credits (all semesters)</span>
             </div>
             <div class="stat">
-              <span class="stat-value">${result.courseCount || 0}</span>
-              <span class="stat-label">Courses</span>
+              <span class="stat-value">${this.state.semesters.length || 0}</span>
+              <span class="stat-label">Semesters</span>
             </div>
           </div>
+        </div>
+        <div style="margin-top:0.75rem">
+          <div class="muted small">This view shows the active semester and your cumulative CGPA across all saved semesters.</div>
         </div>
       `;
       right.appendChild(summary);

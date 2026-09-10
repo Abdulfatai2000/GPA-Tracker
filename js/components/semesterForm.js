@@ -12,7 +12,11 @@ export function renderSemesterForm(onSubmit) {
     <h2>Create Semester</h2>
     <label class="field">
       <span>Semester name</span>
-      <input type="text" id="semester-name" placeholder="e.g. Fall 2026" required />
+      <input type="text" id="semester-name" placeholder="e.g. First Semester" required />
+    </label>
+    <label class="field">
+      <span>Academic session</span>
+      <input type="text" id="semester-session" placeholder="e.g. 2025/2026" required />
     </label>
     <label class="field">
       <span>Grading scale</span>
@@ -21,13 +25,16 @@ export function renderSemesterForm(onSubmit) {
         <option value="4.0">4.0 scale (A=4.0)</option>
       </select>
     </label>
-    <button type="submit" class="btn btn-primary">Create Semester</button>
-    <p class="form-error" id="semester-form-error" role="alert"></p>
+    <div style="display:flex;gap:0.5rem;align-items:center">
+      <button type="submit" class="btn btn-primary">Create Semester</button>
+      <p class="form-error" id="semester-form-error" role="alert" style="margin:0"></p>
+    </div>
   `;
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const name = form.querySelector("#semester-name").value.trim();
+    const session = form.querySelector("#semester-session").value.trim();
     const scaleKey = form.querySelector("#semester-scale").value;
     const errorEl = form.querySelector("#semester-form-error");
 
@@ -35,9 +42,13 @@ export function renderSemesterForm(onSubmit) {
       errorEl.textContent = "Semester name is required.";
       return;
     }
+    if (!session) {
+      errorEl.textContent = "Academic session is required.";
+      return;
+    }
     errorEl.textContent = "";
 
-    onSubmit({ name, scaleKey });
+    onSubmit({ name, session, scaleKey });
     form.reset();
   });
 
