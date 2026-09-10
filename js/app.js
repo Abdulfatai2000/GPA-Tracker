@@ -14,6 +14,8 @@ import { renderSemesterForm } from "./components/semesterForm.js";
 import { renderCourseForm } from "./components/courseForm.js";
 import { renderCourseList } from "./components/courseList.js";
 import { renderGPAResult } from "./components/gpaResult.js";
+import { renderHeader } from "./components/header.js";
+import { renderCourseSection } from "./components/courseSection.js";
 import { applyTheme, getPreferredTheme, toggleTheme } from "./utils/theme.js";
 
 const App = {
@@ -25,7 +27,6 @@ const App = {
 
   init() {
     applyTheme(this.state.theme);
-    this.bindThemeToggle();
     this.restoreData();
     this.render();
   },
@@ -101,13 +102,11 @@ const App = {
 
   // ----- Theme -----
 
-  bindThemeToggle() {
-    document.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-theme-toggle]");
-      if (!button) return;
-      this.state.theme = toggleTheme(this.state.theme);
-      applyTheme(this.state.theme);
-    });
+  // Toggle theme and re-render header so toggle label updates.
+  toggleTheme() {
+    this.state.theme = toggleTheme(this.state.theme);
+    applyTheme(this.state.theme);
+    this.render();
   },
 
   // ----- Rendering -----
@@ -115,53 +114,100 @@ const App = {
   render() {
     const app = document.getElementById("app");
     app.innerHTML = "";
-
-    const header = document.createElement("header");
-    header.className = "app-header";
-    header.innerHTML = `
-      <div class="brand">
-        <h1>GPA Tracker</h1>
-        <p class="tagline">Plan. Track. Succeed.</p>
-      </div>
-      <button type="button" class="btn btn-ghost" data-theme-toggle aria-label="Toggle theme">
-        ${this.state.theme === "dark" ? "Light" : "Dark"}
-      </button>
-    `;
-    app.appendChild(header);
+    // Render header component (keeps branding + theme toggle consistent)
+    app.appendChild(renderHeader(this.state.theme, () => this.toggleTheme()));
 
     const main = document.createElement("main");
     main.className = "app-main";
 
+    // Page intro
+    const intro = document.createElement("section");
+    intro.className = "card intro";
+    intro.innerHTML = `
+      <h2>Welcome</h2>
+      <p class="muted">Create semesters, add courses, and calculate your semester GPA. This dashboard is responsive and supports light/dark themes.</p>
+    `;
+    main.appendChild(intro);
+
+    // Layout: two-column responsive dashboard
+    const grid = document.createElement("div");
+    grid.className = "dashboard-grid";
+
     // If no active semester, show only the create-semester form.
     const semester = this.getActiveSemester();
     if (!semester) {
-      main.appendChild(
-        renderSemesterForm(({ name, scaleKey }) =>
-          this.handleCreateSemester({ name, scaleKey })
-        )
-      );
-      main.appendChild(this.renderEmptyState());
+      const left = document.createElement("div");
+      left.className = "col left";
+      left.appendChild(renderSemesterForm(({ name, scaleKey }) =>
+        this.handleCreateSemester({ name, scaleKey })
+      ));
+
+      const right = document.createElement("div");
+      right.className = "col right";
+      right.appendChild(this.renderEmptyState());
+
+      grid.appendChild(left);
+      grid.appendChild(right);
+      main.appendChild(grid);
     } else {
       // Active semester banner.
       main.appendChild(this.renderActiveBanner(semester));
 
-      // Course form bound to the semester's scale.
-      main.appendChild(
-        renderCourseForm(semester.scaleKey, (data) => this.handleAddCourse(data))
-      );
-
-      // Course list.
+      const left = document.createElement("div");
+      left.className = "col left";
+      // Semester form (edit / context) — prepared for later functionality
+      left.appendChild(renderSemesterForm(({ name, scaleKey }) => this.handleCreateSemester({ name, scaleKey })));
+      // Course form
+      left.appendChild(renderCourseForm(semester.scaleKey, (data) => this.handleAddCourse(data)));
+      // Course section (table + actions)
       const scale = getGradingScale(semester.scaleKey);
-      main.appendChild(
-        renderCourseList(semester.courses, scale, {
-          onEdit: (i) => this.handleEditCourse(i),
-          onDelete: (i) => this.handleDeleteCourse(i),
-        })
-      );
+      left.appendChild(renderCourseSection(semester.courses, scale, {
+        onAddCourse: () => {
+          // focus the add-course form's first input
+          const el = document.querySelector('.course-form #course-code');
+          if (el) el.focus();
+        },
+        onEdit: (i) => this.handleEditCourse(i),
+        onDelete: (i) => this.handleDeleteCourse(i),
+      }));
 
-      // GPA result.
+      const right = document.createElement("div");
+      right.className = "col right";
+      // GPA summary card
       const result = calculateSemesterGPA(semester);
-      main.appendChild(renderGPAResult(result));
+      const summary = document.createElement('section');
+      summary.className = 'card summary-card';
+      summary.innerHTML = `
+        <h2>Summary</h2>
+        <div class="gpa-grid">
+          <div class="gpa-big">
+            <span class="gpa-value">${result.gpa === 0 ? '—' : result.gpa.toFixed(2)}</span>
+            <span class="gpa-label">GPA</span>
+          </div>
+          <div class="gpa-stats">
+            <div class="stat">
+              <span class="stat-value">${result.totalCredits || 0}</span>
+              <span class="stat-label">Total Credits</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">${result.totalQualityPoints || 0}</span>
+              <span class="stat-label">Quality Points</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">${result.courseCount || 0}</span>
+              <span class="stat-label">Courses</span>
+            </div>
+          </div>
+        </div>
+      `;
+      right.appendChild(summary);
+
+      // Full GPA result card (detail)
+      right.appendChild(renderGPAResult(result));
+
+      grid.appendChild(left);
+      grid.appendChild(right);
+      main.appendChild(grid);
     }
 
     app.appendChild(main);

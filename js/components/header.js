@@ -25,10 +25,13 @@ export function renderHeader(theme, onToggleTheme) {
   toggle.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
   toggle.setAttribute("aria-label", "Toggle color theme");
   toggle.textContent = theme === "dark" ? "Light" : "Dark";
-
   toggle.addEventListener("click", () => onToggleTheme());
 
+  const controls = document.createElement('div');
+  controls.className = 'controls';
+  controls.appendChild(toggle);
+
   header.appendChild(brand);
-  header.appendChild(toggle);
+  header.appendChild(controls);
   return header;
 }
